@@ -1,0 +1,6 @@
+{
+  "name": "Daifugo Roguelike",
+  "description": "A roguelike deckbuilder based on the classic Japanese card game Daifugo. Strengthen your hand, make powerful combinations, and dominate your opponents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

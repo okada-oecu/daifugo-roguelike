@@ -1,0 +1,41 @@
+import { Ability } from '../types';
+
+export const ALL_STANDARD_ABILITIES: Ability[] = [
+  { id: 'draw_cards', name: 'ドロー', description: '戦闘中1回のみ、山札からカードを2枚引く。', type: 'active', price: 25 },
+  { id: 'strong_draw', name: '豪運', description: '戦闘中1回のみ、強さ8以上のカードを2枚引く。', type: 'active', price: 30 },
+  { id: 'skip_turn', name: '威圧', description: '戦闘中1回のみ、敵1体のターンを強制的にパスさせる。', type: 'active', price: 25 },
+  { id: 'heal', name: 'カード補充', description: '戦闘中1回のみ、山札からカードを2枚追加で補充する。', type: 'active', price: 20 },
+  { id: 'joker_draw', name: 'ジョーカー召喚', description: '戦闘中1回のみ、ジョーカーを1枚手札に加える。', type: 'active', price: 35 },
+  { id: 'trick_master', name: '支配者', description: '戦闘中1回のみ、場を強制的に流し自分のターンにする。', type: 'active', price: 40 },
+  { id: 'max_hp_up', name: 'スタートダッシュ', description: '初期スコアが+2ptされた状態でゲームが始まる。', type: 'passive', price: 30 },
+  { id: 'gold_rush', name: 'ゴールドラッシュ', description: 'ラウンド終了時に得られるゴールドが+50される。', type: 'passive', price: 30 },
+  { id: 'defense_up', name: '都落ちガード', description: '都落ちが発生した際、手札消失を防ぎ通常順位で継続する。', type: 'passive', price: 25 },
+  { id: 'three_card_revolution', name: '三枚革命', description: '3枚出しでも革命が発動するようになる。', type: 'passive', price: 35 }
+];
+
+export const RARE_REVERSAL_ABILITIES: Ability[] = [
+  { 
+    id: 'reversal_joker_burst', 
+    name: '【超絶】ジョーカー連打', 
+    description: '大貧民専用奥義。戦闘中1回のみ、最強のジョーカーを3枚同時に手札に召喚する！', 
+    type: 'active', 
+    isRare: true, 
+    price: 15 
+  },
+  { 
+    id: 'gekurou_reversal', 
+    name: '【下剋上】一括強奪流し', 
+    description: '大貧民専用奥義。戦闘中1回のみ、場を即座に流して敵全員の手札からランダムに1枚ずつカードを強奪する！', 
+    type: 'active', 
+    isRare: true, 
+    price: 15 
+  },
+  { 
+    id: 'gyakuten_emperor', 
+    name: '【下剋上】覇権の野望', 
+    description: '大貧民専用パッシブ。このラウンドで1位（大富豪）を取った場合、獲得ptが2倍（+6pt）になり一発大逆転！', 
+    type: 'passive', 
+    isRare: true, 
+    price: 20 
+  }
+];
