@@ -24,6 +24,7 @@ interface CombatViewProps {
 }
 
 const ACTORS: Actor[] = ['player', 'enemy1', 'enemy2', 'enemy3'];
+const TURN_TIME_LIMIT = 30;
 
 const EFFECT_STYLES: Record<string, { glow: string; border: string; text: string }> = {
   revolution: { glow: 'shadow-[0_0_100px_30px_rgba(225,29,72,0.55)]', border: 'border-rose-500', text: 'text-rose-400' },
@@ -139,11 +140,21 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     setLogs(prev => [...prev, msg].slice(-8));
   };
 
-  const [turn, setTurn] = useState<TurnState>('player');
+  // Round 1 starts from a random seat; every later round hands the lead to whoever
+  // finished as 大貧民 last time, so the player behind gets first crack at the deal.
+  const getStartingActor = (): Actor => {
+    if (gameState.round <= 1) {
+      return ACTORS[Math.floor(Math.random() * ACTORS.length)];
+    }
+    return ACTORS.find(a => gameState.ranks[a] === '大貧民') || ACTORS[Math.floor(Math.random() * ACTORS.length)];
+  };
+
+  const [turn, setTurn] = useState<TurnState>(() => getStartingActor());
   const [nextTurnAfterSpecial, setNextTurnAfterSpecial] = useState<TurnState | null>(null);
   const [passCount7, setPassCount7] = useState<number>(0);
   const [discardCount10, setDiscardCount10] = useState<number>(0);
   const [rensaPendingActor, setRensaPendingActor] = useState<Actor | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(TURN_TIME_LIMIT);
 
   const [isRevolution, setIsRevolution] = useState(false);
   const [is11Back, setIs11Back] = useState(false);
@@ -233,7 +244,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
         broadcastState({
           hands: currentHands,
-          turn: 'player',
+          turn,
           trick: [],
           trickOwner: null,
           passedActors: [],
@@ -384,7 +395,9 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
       const titles: RankTitle[] = ['大富豪', '富豪', '貧民', '大貧民'];
       const points = [3, 2, 1, 0];
-      const baseGold = [60, 40, 20, 10];
+      // Last place still earns meaningfully less than first, but not so little that a bad
+      // round locks them out of the shop entirely — a large early gap tends to snowball.
+      const baseGold = [55, 40, 30, 25];
 
       const rankings = finalOrder.map((actor, idx) => {
         const title = titles[idx];
@@ -897,9 +910,10 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     setSelectedIds(newSelected);
   };
 
-  const attemptPlayerPlay = () => {
+  const attemptPlayerPlay = (overrideIds?: Set<string>) => {
+    const ids = overrideIds || selectedIds;
     const playerHand = hands[currentMyActor] || [];
-    const selectedCards = playerHand.filter(c => selectedIds.has(c.id));
+    const selectedCards = playerHand.filter(c => ids.has(c.id));
     const hasThreeCardRevolution = (gameState.abilities[currentMyActor] || []).some(a => a.id === 'three_card_revolution');
     const play = evaluatePlay(selectedCards, effectiveReversed, hasThreeCardRevolution);
 
@@ -909,7 +923,8 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     }
   };
 
-  const attemptPlayerPass7 = () => {
+  const attemptPlayerPass7 = (overrideIds?: Set<string>) => {
+    const ids = overrideIds || selectedIds;
     const playerHand = hands[currentMyActor] || [];
     const effectivePassCount = Math.max(1, passCount7);
     const requiredPass = Math.min(effectivePassCount, playerHand.length);
@@ -923,13 +938,13 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       return;
     }
 
-    if (selectedIds.size === requiredPass) {
-      const selectedCards = playerHand.filter(c => selectedIds.has(c.id));
+    if (ids.size === requiredPass) {
+      const selectedCards = playerHand.filter(c => ids.has(c.id));
       const recipient = getNextActiveActor(currentMyActor);
       const recipientHand = hands[recipient] || [];
       const updated = {
         ...hands,
-        [currentMyActor]: playerHand.filter(c => !selectedIds.has(c.id)),
+        [currentMyActor]: playerHand.filter(c => !ids.has(c.id)),
         [recipient]: [...recipientHand, ...selectedCards].sort((a,b) => a.rank - b.rank)
       };
       setHands(updated);
@@ -942,7 +957,8 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     }
   };
 
-  const attemptPlayerDiscard10 = () => {
+  const attemptPlayerDiscard10 = (overrideIds?: Set<string>) => {
+    const ids = overrideIds || selectedIds;
     const playerHand = hands[currentMyActor] || [];
     const effectiveDiscardCount = Math.max(1, discardCount10);
     const maxDiscard = Math.min(effectiveDiscardCount, playerHand.length);
@@ -956,10 +972,10 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       return;
     }
 
-    if (selectedIds.size > 0 && selectedIds.size <= maxDiscard) {
+    if (ids.size > 0 && ids.size <= maxDiscard) {
       const updated = {
         ...hands,
-        [currentMyActor]: playerHand.filter(c => !selectedIds.has(c.id))
+        [currentMyActor]: playerHand.filter(c => !ids.has(c.id))
       };
       setHands(updated);
       setSelectedIds(new Set());
@@ -971,10 +987,11 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     }
   };
 
-  const attemptPlayerMulligan = () => {
+  const attemptPlayerMulligan = (overrideIds?: Set<string>) => {
+    const ids = overrideIds || selectedIds;
     const playerHand = hands[currentMyActor] || [];
     const requiredCount = Math.min(3, playerHand.length);
-    if (selectedIds.size !== requiredCount) return;
+    if (ids.size !== requiredCount) return;
 
     const suits: Suit[] = ['♠', '♥', '♦', '♣'];
     const newCards: CardData[] = Array.from({ length: requiredCount }).map((_, i) => ({
@@ -985,7 +1002,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
     const updated = {
       ...hands,
-      [currentMyActor]: [...playerHand.filter(c => !selectedIds.has(c.id)), ...newCards].sort((a, b) => a.rank - b.rank)
+      [currentMyActor]: [...playerHand.filter(c => !ids.has(c.id)), ...newCards].sort((a, b) => a.rank - b.rank)
     };
     setHands(updated);
     setSelectedIds(new Set());
@@ -995,6 +1012,68 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     setNextTurnAfterSpecial(null);
     broadcastState({ hands: updated, turn: nxt, nextTurnAfterSpecial: null });
   };
+
+  // Auto-resolve the player's turn when the countdown hits zero, always picking the
+  // weakest cards available — mirrors what the CPU's own AI would conservatively do.
+  const weakestCardIds = (count: number): Set<string> => {
+    const playerHand = hands[currentMyActor] || [];
+    const sorted = [...playerHand].sort((a, b) => getCardStrength(a.rank, effectiveReversed) - getCardStrength(b.rank, effectiveReversed));
+    return new Set(sorted.slice(0, count).map(c => c.id));
+  };
+
+  const handleTurnTimeout = () => {
+    const playerHand = hands[currentMyActor] || [];
+    if (playerHand.length === 0) return;
+
+    if (turn === currentMyActor) {
+      const isFreeLead = trickOwner === currentMyActor || trick.length === 0 || !trickOwner;
+      if (isFreeLead) {
+        addLog(`⏰ 時間切れ！自動で最弱カードを出しました。`);
+        attemptPlayerPlay(weakestCardIds(1));
+      } else {
+        addLog(`⏰ 時間切れ！自動でパスしました。`);
+        handlePass(currentMyActor);
+      }
+    } else if (turn === `${currentMyActor}_pass_7`) {
+      const requiredPass = Math.min(Math.max(1, passCount7), playerHand.length);
+      addLog(`⏰ 時間切れ！自動でカードを渡しました。`);
+      attemptPlayerPass7(weakestCardIds(requiredPass));
+    } else if (turn === `${currentMyActor}_discard_10`) {
+      const maxDiscard = Math.min(Math.max(1, discardCount10), playerHand.length);
+      addLog(`⏰ 時間切れ！自動でカードを捨てました。`);
+      attemptPlayerDiscard10(weakestCardIds(maxDiscard));
+    } else if (turn === `${currentMyActor}_mulligan`) {
+      addLog(`⏰ 時間切れ！自動で手札を入れ替えました。`);
+      attemptPlayerMulligan(weakestCardIds(Math.min(3, playerHand.length)));
+    }
+  };
+
+  // Per-turn countdown for the human player — resets whenever it becomes (or stops
+  // being) their turn, and auto-resolves the turn once it reaches zero.
+  useEffect(() => {
+    const isMyDecision = turn === currentMyActor || turn.startsWith(`${currentMyActor}_`);
+    if (!isMyDecision || roundEnded) {
+      setTimeLeft(TURN_TIME_LIMIT);
+      return;
+    }
+    setTimeLeft(TURN_TIME_LIMIT);
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [turn, roundEnded]);
+
+  useEffect(() => {
+    const isMyDecision = turn === currentMyActor || turn.startsWith(`${currentMyActor}_`);
+    if (!isMyDecision || roundEnded || timeLeft > 0) return;
+    handleTurnTimeout();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft]);
 
   const PASSIVE_IDS = new Set(['clairvoyance', 'three_card_revolution', 'extra_discard', 'max_hp_up', 'gold_rush', 'defense_up', 'gyakuten_emperor', 'teppeki', 'kane_no_saihai', 'fukutsu']);
   const myAbilities = gameState.abilities[currentMyActor] || [];
@@ -1274,12 +1353,15 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                 const score = gameState.scores[actor] || 0;
                 const name = getActorName(actor).replace(' (あなた)', '');
                 return (
-                  <div key={actor} className={cn("flex justify-between items-center py-0.5", isMe ? "text-amber-400 font-bold" : "text-slate-300")}>
-                    <span className="truncate max-w-[120px]">{idx + 1}. {name}</span>
-                    <span className="font-pixel text-amber-300 ml-2">{score} pt</span>
+                  <div key={actor} className={cn("flex justify-between items-center py-0.5 gap-2", isMe ? "text-amber-400 font-bold" : "text-slate-300")}>
+                    <span className="truncate min-w-0 flex-1" title={name}>{idx + 1}. {name}</span>
+                    <span className="font-pixel text-amber-300 shrink-0">{score}<span className="text-slate-500">/12pt</span></span>
                   </div>
                 );
               })}
+            </div>
+            <div className="text-[9px] text-slate-500 text-center pt-1 border-t border-white/5 mt-1">
+              🎯 12pt先取で勝利
             </div>
           </div>
 
@@ -1441,7 +1523,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
         {/* MIDDLE SECTION (LEFT ACTOR, CENTER TRICK MAT, RIGHT ACTOR) */}
         <div className="flex-1 flex items-center justify-between my-2 relative">
           {/* LEFT ACTOR */}
-          <div className="flex flex-col items-center z-10 space-y-1 w-24">
+          <div className="flex flex-col items-center z-10 space-y-1 w-24 sm:w-28">
             <div className={cn(
               "px-2 py-1 rounded-full text-[10px] font-bold border text-center transition-all truncate max-w-full",
               turn === left ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.5)] scale-105" : "bg-black/80 text-slate-400 border-slate-700"
@@ -1502,7 +1584,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
           </div>
 
           {/* RIGHT ACTOR */}
-          <div className="flex flex-col items-center z-10 space-y-1 w-24">
+          <div className="flex flex-col items-center z-10 space-y-1 w-24 sm:w-28">
             <div className={cn(
               "px-2 py-1 rounded-full text-[10px] font-bold border text-center transition-all truncate max-w-full",
               turn === right ? "bg-amber-500 text-black border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.5)] scale-105" : "bg-black/80 text-slate-400 border-slate-700"
@@ -1544,6 +1626,16 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
               )}>
                 {turn === bottom ? '★ あなたの番' : turn === `${bottom}_pass_7` ? '🎁 7渡しモード' : turn === `${bottom}_discard_10` ? '🃏 10捨てモード' : turn === `${bottom}_mulligan` ? '🔄 手札厳選モード' : getActorName(bottom)}
               </span>
+              {(turn === bottom || turn.startsWith(`${bottom}_`)) && (
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-xs font-mono font-bold border tabular-nums",
+                  timeLeft <= 10
+                    ? "bg-red-950/80 text-red-400 border-red-500 animate-pulse"
+                    : "bg-black/60 text-slate-300 border-slate-600"
+                )}>
+                  ⏱ {timeLeft}s
+                </span>
+              )}
               <span className="text-xs text-slate-400 font-pixel">手札: {hands[bottom]?.length || 0}枚</span>
             </div>
 
@@ -1588,7 +1680,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
             {turn === bottom && (
               <>
                 <button
-                  onClick={attemptPlayerPlay}
+                  onClick={() => attemptPlayerPlay()}
                   disabled={!isValid || selectedIds.size === 0}
                   className="font-pixel text-lg md:text-xl font-black bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white px-6 py-2 rounded-xl shadow-lg border-2 border-red-400/50 hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
                 >
@@ -1624,7 +1716,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
             {turn === `${bottom}_pass_7` && (
               <button
-                onClick={attemptPlayerPass7}
+                onClick={() => attemptPlayerPass7()}
                 disabled={selectedIds.size !== Math.min(Math.max(1, passCount7), hands[bottom]?.length || 1)}
                 className="font-pixel text-lg text-blue-300 font-bold hover:scale-105 active:scale-95 transition-transform disabled:opacity-30 bg-blue-950/80 border-2 border-blue-500 px-6 py-2 rounded-xl cursor-pointer shadow-lg"
               >
@@ -1634,7 +1726,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
             {turn === `${bottom}_discard_10` && (
               <button
-                onClick={attemptPlayerDiscard10}
+                onClick={() => attemptPlayerDiscard10()}
                 disabled={selectedIds.size === 0 || selectedIds.size > Math.min(Math.max(1, discardCount10), hands[bottom]?.length || 1)}
                 className="font-pixel text-lg text-rose-300 font-bold hover:scale-105 active:scale-95 transition-transform disabled:opacity-30 bg-rose-950/80 border-2 border-rose-500 px-6 py-2 rounded-xl cursor-pointer shadow-lg"
               >
@@ -1644,7 +1736,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
             {turn === `${bottom}_mulligan` && (
               <button
-                onClick={attemptPlayerMulligan}
+                onClick={() => attemptPlayerMulligan()}
                 disabled={selectedIds.size !== Math.min(3, hands[bottom]?.length || 0)}
                 className="font-pixel text-lg text-purple-300 font-bold hover:scale-105 active:scale-95 transition-transform disabled:opacity-30 bg-purple-950/80 border-2 border-purple-500 px-6 py-2 rounded-xl cursor-pointer shadow-lg"
               >
@@ -1739,7 +1831,10 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="text-amber-300 font-bold">+{res.pts} pt</span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-amber-300 font-bold">+{res.pts} pt</span>
+                          <span className="text-[10px] text-slate-400">累計 {res.totalPts}<span className="text-slate-500">/12pt</span></span>
+                        </div>
                         <span className="text-yellow-400 text-[11px] flex items-center gap-1">
                           <Coins className="w-3 h-3" />+{res.gold}
                         </span>
