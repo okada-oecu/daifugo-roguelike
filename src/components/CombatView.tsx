@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { CardData, GameState, Play, TurnState, Rank, Suit, Actor, RankTitle } from '../types';
 import { createEnemyHands, createAllFourHands, applyTaxExchange, evaluatePlay, canPlay, getAIOptimalPlay, getCardStrength } from '../utils/daifugo';
+import { playSound } from '../utils/sound';
 import { PlayingCard } from './PlayingCard';
+import { AbilityIcon } from '../data/abilityIcons';
 import { Trophy, Coins, MessageSquare, LogOut, ArrowRight, ShieldAlert } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -22,6 +24,16 @@ interface CombatViewProps {
 }
 
 const ACTORS: Actor[] = ['player', 'enemy1', 'enemy2', 'enemy3'];
+
+const EFFECT_STYLES: Record<string, { glow: string; border: string; text: string }> = {
+  revolution: { glow: 'shadow-[0_0_100px_30px_rgba(225,29,72,0.55)]', border: 'border-rose-500', text: 'text-rose-400' },
+  '11back': { glow: 'shadow-[0_0_100px_30px_rgba(56,189,248,0.55)]', border: 'border-sky-400', text: 'text-sky-300' },
+  '8giri': { glow: 'shadow-[0_0_100px_30px_rgba(56,189,248,0.55)]', border: 'border-sky-400', text: 'text-sky-300' },
+  '10discard': { glow: 'shadow-[0_0_100px_30px_rgba(244,63,94,0.55)]', border: 'border-rose-400', text: 'text-rose-300' },
+  '7pass': { glow: 'shadow-[0_0_100px_30px_rgba(245,158,11,0.55)]', border: 'border-amber-400', text: 'text-amber-300' },
+  joker: { glow: 'shadow-[0_0_100px_30px_rgba(168,85,247,0.6)]', border: 'border-purple-400', text: 'text-purple-300' },
+  ability: { glow: 'shadow-[0_0_100px_30px_rgba(234,179,8,0.6)]', border: 'border-amber-300', text: 'text-amber-300' },
+};
 
 export function CombatView({ gameState, setGameState, roomInfo, myActor = 'player' }: CombatViewProps) {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -565,6 +577,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
   // Execute Play
   const executePlay = (play: Play, actor: Actor) => {
+    playSound.play();
     const playIds = new Set(play.cards.map(c => c.id));
     const currentHand = hands[actor] || [];
     const remainingHand = currentHand.filter(c => !playIds.has(c.id));
@@ -643,6 +656,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
     if (newScreenEffect) {
       setScreenEffect(newScreenEffect);
+      playSound.special();
     }
 
     let isTrickCleared = false;
@@ -752,6 +766,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
   };
 
   const handlePass = (actor: Actor) => {
+    playSound.pass();
     addLog(`${getActorName(actor)} がパスしました。`);
 
     const newPassedActors = new Set<Actor>(passedActors);
@@ -810,6 +825,8 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
 
   const toggleCardSelection = (id: string) => {
     if (turn !== currentMyActor && turn !== `${currentMyActor}_pass_7` && turn !== `${currentMyActor}_discard_10` && turn !== `${currentMyActor}_mulligan`) return;
+
+    playSound[selectedIds.has(id) ? 'deselect' : 'select']();
 
     const myHandLen = hands[currentMyActor]?.length || 1;
 
@@ -989,6 +1006,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     const targetAbility = myAbilities.find(a => a.id === abilityId);
     if (!targetAbility || targetAbility.type === 'passive' || PASSIVE_IDS.has(abilityId) || targetAbility.isUsed) return;
 
+    playSound.ability();
     const updatedMine = myAbilities.map(a => a.id === abilityId ? { ...a, isUsed: true } : a);
     setGameState(prev => ({
       ...prev,
@@ -1242,7 +1260,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
   return (
     <div className="min-h-screen bg-black text-slate-100 flex flex-col md:flex-row font-pixel overflow-hidden relative select-none">
       {/* LEFT SIDEBAR PANEL */}
-      <div className="w-full md:w-56 lg:w-64 bg-[#111113] border-b-4 md:border-b-0 md:border-r-4 border-[#222] p-3 flex flex-col justify-between shrink-0 z-30 space-y-3">
+      <div className="order-2 md:order-none w-full md:w-56 lg:w-64 bg-[#111113] border-t-4 md:border-t-0 md:border-b-0 md:border-r-4 border-[#222] p-3 flex flex-col justify-between shrink-0 z-30 space-y-3">
         <div className="space-y-3">
           {/* SCORE BOARD */}
           <div className="bg-black/90 border-2 border-[#333] p-3 rounded-lg shadow-inner">
@@ -1307,7 +1325,10 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                         : "bg-slate-800/40 text-slate-400 border-slate-700 opacity-60"
                     )}
                   >
-                    <span className="truncate">{abil.name}</span>
+                    <span className="truncate flex items-center gap-1.5">
+                      <AbilityIcon id={abil.id} size={13} className="shrink-0" />
+                      {abil.name}
+                    </span>
                     <span className="text-[9px] shrink-0 ml-1 font-mono">{abil.isUsed ? '使用済' : '発動'}</span>
                   </button>
                 ))}
@@ -1329,7 +1350,10 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                     title={abil.description}
                     className="w-full text-left p-1.5 rounded text-[11px] font-bold bg-sky-950/40 text-sky-200 border border-sky-500/40 flex items-center justify-between"
                   >
-                    <span className="truncate">{abil.name}</span>
+                    <span className="truncate flex items-center gap-1.5">
+                      <AbilityIcon id={abil.id} size={13} className="shrink-0" />
+                      {abil.name}
+                    </span>
                     <span className="text-[9px] shrink-0 ml-1 text-sky-400 bg-sky-950 border border-sky-500/50 px-1 rounded">常時</span>
                   </div>
                 ))}
@@ -1375,7 +1399,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       </div>
 
       {/* CENTER PLAY MAT / MAIN GAME BOARD */}
-      <div className="flex-1 bg-[#0a0a0c] relative flex flex-col justify-between p-2 md:p-6 overflow-hidden">
+      <div className="order-1 md:order-none flex-1 bg-[#0a0a0c] relative flex flex-col justify-between p-2 md:p-6 overflow-hidden">
         {/* LEAVE NOTICE */}
         {leaveNotice && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/90 border-2 border-red-500 text-white px-4 py-2 rounded-lg shadow-2xl font-pixel text-xs animate-bounce">
@@ -1450,24 +1474,6 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
             <div className="absolute top-2 left-3 text-[10px] font-pixel text-slate-500 uppercase tracking-widest">
               TRICK BOARD {trickOwner && `• LEAD: ${getActorName(trickOwner)}`}
             </div>
-
-            {/* SCREEN EFFECTS OVERLAY */}
-            <AnimatePresence>
-              {screenEffect && (
-                <motion.div
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 1.2, opacity: 0 }}
-                  className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center"
-                >
-                  <h3 className="text-xl md:text-2xl font-black text-amber-400 tracking-wider mb-1 animate-pulse">
-                    {screenEffect.title}
-                  </h3>
-                  <p className="text-xs text-slate-200 font-pixel">{screenEffect.subtitle}</p>
-                  <span className="text-[10px] text-amber-300/80 mt-2 font-pixel">BY {screenEffect.actorName}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* CARDS PLAYED ON TRICK */}
             {currentTopPlay ? (
@@ -1655,6 +1661,43 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
         </div>
       </div>
 
+      {/* SCREEN EFFECTS OVERLAY (full-screen, dramatic) */}
+      <AnimatePresence>
+        {screenEffect && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-none p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.2, opacity: 0, rotate: -8 }}
+              animate={{ scale: [0.2, 1.25, 1], opacity: 1, rotate: 0 }}
+              exit={{ scale: 1.4, opacity: 0 }}
+              transition={{ duration: 0.5, times: [0, 0.65, 1], ease: 'easeOut' }}
+              className={cn(
+                "text-center px-6 sm:px-12 py-8 sm:py-10 border-4 rounded-2xl bg-black/70 max-w-[95vw]",
+                (EFFECT_STYLES[screenEffect.type] || EFFECT_STYLES.ability).border,
+                (EFFECT_STYLES[screenEffect.type] || EFFECT_STYLES.ability).glow
+              )}
+            >
+              <motion.h3
+                animate={{ scale: [1, 1.06, 1] }}
+                transition={{ duration: 0.6, repeat: Infinity }}
+                className={cn(
+                  "text-3xl sm:text-5xl md:text-6xl font-black tracking-wider mb-3 drop-shadow-[0_0_25px_currentColor]",
+                  (EFFECT_STYLES[screenEffect.type] || EFFECT_STYLES.ability).text
+                )}
+              >
+                {screenEffect.title}
+              </motion.h3>
+              <p className="text-sm sm:text-lg text-slate-100 font-pixel">{screenEffect.subtitle}</p>
+              <span className="text-[10px] sm:text-xs text-slate-300/90 mt-3 font-pixel block tracking-widest">BY {screenEffect.actorName}</span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ROUND END RESULTS MODAL OVERLAY */}
       <AnimatePresence>
         {roundEnded && roundSummary && (
@@ -1723,9 +1766,8 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
         <MultiplayerChat
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
-          messages={chatMessages}
-          roomCode={roomInfo.code}
-          actor={currentMyActor}
+          chatMessages={chatMessages}
+          myActor={currentMyActor}
         />
       )}
     </div>

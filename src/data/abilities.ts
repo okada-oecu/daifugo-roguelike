@@ -52,5 +52,13 @@ export const RARE_REVERSAL_ABILITIES: Ability[] = [
     type: 'active',
     isRare: true,
     price: 15
+  },
+  {
+    id: 'clairvoyance',
+    name: '【透視眼】千里眼',
+    description: '大貧民専用パッシブ。敵の手札が常に全て見えるようになる。',
+    type: 'passive',
+    isRare: true,
+    price: 20
   }
 ];

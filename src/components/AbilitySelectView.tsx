@@ -3,6 +3,8 @@ import { GameState, Ability } from '../types';
 import { RoomInfo } from '../types/multiplayer';
 import { socketService } from '../services/socket';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { AbilityIcon } from '../data/abilityIcons';
+import { playSound } from '../utils/sound';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -11,7 +13,6 @@ function cn(...inputs: ClassValue[]) {
 }
 
 const ALL_ABILITIES: Ability[] = [
-  { id: 'clairvoyance', name: '透視', description: '敵の手札が常に全て見えるようになる。', type: 'passive' },
   { id: 'three_card_revolution', name: '革命家', description: '同じ数字のカード3枚で革命を起こせるようになる。', type: 'passive' },
   { id: 'extra_discard', name: '断捨離', description: '10を出した時、捨てるカードの枚数が1枚増える。', type: 'passive' },
   { id: 'draw_cards', name: 'ドロー', description: '戦闘中1回のみ、山札からカードを2枚引く。', type: 'active' },
@@ -78,9 +79,11 @@ export function AbilitySelectView({ gameState, setGameState, roomInfo, myActor =
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
+      playSound.deselect();
     } else {
       if (newSelected.size < 3) {
         newSelected.add(id);
+        playSound.select();
       }
     }
     setSelectedIds(newSelected);
@@ -153,7 +156,8 @@ export function AbilitySelectView({ gameState, setGameState, roomInfo, myActor =
                 )}
               >
                 <div className="flex justify-between items-center w-full">
-                  <span className={cn("font-bold text-xs sm:text-sm", isSelected ? "text-amber-300" : "text-zinc-100")}>
+                  <span className={cn("font-bold text-xs sm:text-sm flex items-center gap-1.5", isSelected ? "text-amber-300" : "text-zinc-100")}>
+                    <AbilityIcon id={ability.id} size={14} className="shrink-0" />
                     {ability.name}
                   </span>
                   <span className={cn(

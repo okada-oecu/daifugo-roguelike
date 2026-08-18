@@ -3,6 +3,8 @@ import { CardData, GameState, Ability } from '../types';
 import { getShopCards } from '../utils/daifugo';
 import { PlayingCard } from './PlayingCard';
 import { ALL_STANDARD_ABILITIES, RARE_REVERSAL_ABILITIES } from '../data/abilities';
+import { AbilityIcon } from '../data/abilityIcons';
+import { playSound } from '../utils/sound';
 import { Trophy, Coins, ArrowRight, Trash2, Sparkles, Zap, Loader2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -89,6 +91,7 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
   const buyCard = (card: CardData, index: number) => {
     if (isWaiting) return;
     if (gameState.gold >= 10) {
+      playSound.select();
       setGameState(prev => ({
         ...prev,
         gold: prev.gold - 10,
@@ -102,6 +105,7 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
     if (isWaiting) return;
     const cost = getAbilityCost(ability);
     if (gameState.gold >= cost) {
+      playSound.ability();
       const updatedMine = [...(gameState.abilities[actorKey] || []), { ...ability, isUsed: false }];
       setGameState(prev => ({
         ...prev,
@@ -118,6 +122,7 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
   const removeCard = () => {
     if (isWaiting) return;
     if (selectedToRemove && gameState.gold >= 20) {
+      playSound.pass();
       setGameState(prev => ({
         ...prev,
         gold: prev.gold - 20,
@@ -212,6 +217,7 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
+                          <AbilityIcon id={ability.id} size={16} className={cn("shrink-0", ability.isRare ? "text-purple-300" : "text-amber-300")} />
                           <span className={cn("font-bold text-sm", ability.isRare ? "text-purple-300 font-serif" : "text-amber-300")}>
                             {ability.name}
                           </span>
