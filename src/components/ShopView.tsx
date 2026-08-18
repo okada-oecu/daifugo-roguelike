@@ -35,6 +35,8 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
   const [abilityOffers, setAbilityOffers] = useState<Ability[]>([]);
 
   const myAbilities = gameState.abilities[actorKey] || [];
+  const hasDiscount = myAbilities.some(a => a.id === 'kane_no_saihai');
+  const getAbilityCost = (ability: Ability) => Math.round((ability.price || 30) * (hasDiscount ? 0.8 : 1));
 
   useEffect(() => {
     const ownedIds = new Set(myAbilities.map(a => a.id));
@@ -98,7 +100,7 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
 
   const buyAbility = (ability: Ability) => {
     if (isWaiting) return;
-    const cost = ability.price || 30;
+    const cost = getAbilityCost(ability);
     if (gameState.gold >= cost) {
       const updatedMine = [...(gameState.abilities[actorKey] || []), { ...ability, isUsed: false }];
       setGameState(prev => ({
@@ -195,7 +197,7 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
 
             <div className="grid grid-cols-1 gap-3">
               {abilityOffers.map(ability => {
-                const cost = ability.price || 30;
+                const cost = getAbilityCost(ability);
                 const canAfford = gameState.gold >= cost;
                 return (
                   <div 
@@ -233,7 +235,9 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
 
                     <div className="flex justify-between items-center pt-2 border-t border-white/5">
                       <span className="text-xs font-mono font-bold text-amber-400 flex items-center gap-1">
-                        <Coins size={14} /> {cost}G
+                        <Coins size={14} />
+                        {hasDiscount && <span className="text-slate-500 line-through">{ability.price || 30}G</span>}
+                        {cost}G
                       </span>
                       <button
                         disabled={!canAfford || isWaiting}

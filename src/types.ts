@@ -27,29 +27,38 @@ export type GamePhase = 'menu' | 'multiplayer_lobby' | 'ability_select' | 'comba
 export type Actor = 'player' | 'enemy1' | 'enemy2' | 'enemy3';
 export type RankTitle = '大富豪' | '富豪' | '平民' | '貧民' | '大貧民';
 
-export type TurnState = 
-  | Actor 
+export type TurnState =
+  | Actor
   | `${Actor}_pass_7`
   | `${Actor}_discard_10`
+  | `${Actor}_mulligan`
   | 'trick_end';
 
-export type AbilityId = 
-  | 'clairvoyance' 
-  | 'three_card_revolution' 
-  | 'extra_discard' 
-  | 'draw_cards' 
-  | 'strong_draw' 
-  | 'skip_turn' 
-  | 'heal' 
-  | 'joker_draw' 
-  | 'shield' 
-  | 'max_hp_up' 
-  | 'gold_rush' 
-  | 'trick_master' 
+export type AbilityId =
+  | 'clairvoyance'
+  | 'three_card_revolution'
+  | 'extra_discard'
+  | 'draw_cards'
+  | 'strong_draw'
+  | 'skip_turn'
+  | 'heal'
+  | 'joker_draw'
+  | 'shield'
+  | 'max_hp_up'
+  | 'gold_rush'
+  | 'trick_master'
   | 'defense_up'
   | 'reversal_joker_burst'
   | 'gekurou_reversal'
-  | 'gyakuten_emperor';
+  | 'gyakuten_emperor'
+  | 'rensa'
+  | 'kandatsu'
+  | 'tefuda_senkyo'
+  | 'shinkakumei'
+  | 'teppeki'
+  | 'kane_no_saihai'
+  | 'fukutsu'
+  | 'bourei';
 
 export interface Ability {
   id: AbilityId;

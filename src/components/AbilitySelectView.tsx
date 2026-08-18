@@ -22,7 +22,14 @@ const ALL_ABILITIES: Ability[] = [
   { id: 'trick_master', name: '支配者', description: '戦闘中1回のみ、場を強制的に流し自分のターンにする。', type: 'active' },
   { id: 'max_hp_up', name: 'スタートダッシュ', description: '初期スコアが+2ptされた状態でゲームが始まる。', type: 'passive' },
   { id: 'gold_rush', name: 'ゴールドラッシュ', description: 'ラウンド終了時に得られるゴールドが+50される。', type: 'passive' },
-  { id: 'defense_up', name: '都落ちガード', description: '都落ちが発生した際、手札消失を防ぎ通常順位で継続する。', type: 'passive' }
+  { id: 'defense_up', name: '都落ちガード', description: '都落ちが発生した際、手札消失を防ぎ通常順位で継続する。', type: 'passive' },
+  { id: 'rensa', name: '連撃', description: '戦闘中1回のみ、次に出したプレイの直後、もう一度自分の番になる。', type: 'active' },
+  { id: 'kandatsu', name: '強奪', description: '戦闘中1回のみ、ランダムな敵1体から一番強いカードを1枚奪う。', type: 'active' },
+  { id: 'tefuda_senkyo', name: '手札厳選', description: '戦闘中1回のみ、手札から好きな3枚を捨てて新しく3枚引き直す。', type: 'active' },
+  { id: 'shinkakumei', name: '即革命', description: '戦闘中1回のみ、手札構成に関係なくその場で革命を発動する。', type: 'active' },
+  { id: 'teppeki', name: '鉄壁', description: '7渡しで相手に渡すカードの枚数が1枚減る（最低1枚）。', type: 'passive' },
+  { id: 'kane_no_saihai', name: '金の采配', description: 'ショップでの能力購入価格が常に2割引になる。', type: 'passive' },
+  { id: 'fukutsu', name: '不屈の精神', description: '都落ちで大貧民になった場合、そのラウンドのゴールド獲得量に+30される。', type: 'passive' }
 ];
 
 interface AbilitySelectViewProps {

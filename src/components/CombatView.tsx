@@ -131,6 +131,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
   const [nextTurnAfterSpecial, setNextTurnAfterSpecial] = useState<TurnState | null>(null);
   const [passCount7, setPassCount7] = useState<number>(0);
   const [discardCount10, setDiscardCount10] = useState<number>(0);
+  const [rensaPendingActor, setRensaPendingActor] = useState<Actor | null>(null);
 
   const [isRevolution, setIsRevolution] = useState(false);
   const [is11Back, setIs11Back] = useState(false);
@@ -176,6 +177,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     nextTurnAfterSpecial: TurnState | null;
     roundEnded: boolean;
     roundSummary: any;
+    rensaPendingActor: Actor | null;
   }> = {}) => {
     if (!roomInfo) return;
 
@@ -197,6 +199,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       roundEnded: overrides.roundEnded !== undefined ? overrides.roundEnded : roundEnded,
       roundSummary: overrides.roundSummary !== undefined ? overrides.roundSummary : roundSummary,
       screenEffect: overrides.screenEffect !== undefined ? overrides.screenEffect : null,
+      rensaPendingActor: overrides.rensaPendingActor !== undefined ? overrides.rensaPendingActor : rensaPendingActor,
     };
 
     socketService.syncGameState(payload);
@@ -264,6 +267,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       if (synced.roundEnded !== undefined) setRoundEnded(synced.roundEnded);
       if (synced.roundSummary !== undefined) setRoundSummary(synced.roundSummary);
       if (synced.screenEffect !== undefined) setScreenEffect(synced.screenEffect);
+      if (synced.rensaPendingActor !== undefined) setRensaPendingActor(synced.rensaPendingActor);
     });
 
     return () => {
@@ -374,7 +378,8 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
         const title = titles[idx];
         let pts = points[idx];
         const hasGoldRush = (gameState.abilities[actor] || []).some(a => a.id === 'gold_rush');
-        const gold = baseGold[idx] + (hasGoldRush ? 50 : 0);
+        const hasFukutsu = (gameState.abilities[actor] || []).some(a => a.id === 'fukutsu');
+        const gold = baseGold[idx] + (hasGoldRush ? 50 : 0) + (actor === miyakoOchiActor && hasFukutsu ? 30 : 0);
         const totalPts = (gameState.scores[actor] || 0) + pts;
         return {
           actor,
@@ -643,6 +648,12 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     let isTrickCleared = false;
     let baseNextTurn: TurnState = getNextActiveActor(actor);
 
+    let consumedRensa = false;
+    if (rensaPendingActor === actor) {
+      baseNextTurn = actor;
+      consumedRensa = true;
+    }
+
     let newIsRev = isRevolution;
     let newIs11 = is11Back;
     if (play.isRevolution) {
@@ -687,12 +698,17 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       } else if (play.has7) {
         addLog(`7渡し発動！`);
         specialTurn = `${actor}_pass_7` as TurnState;
-        newPass7Count = play.count7;
+        const hasTeppeki = (gameState.abilities[actor] || []).some(a => a.id === 'teppeki');
+        newPass7Count = Math.max(1, play.count7 - (hasTeppeki ? 1 : 0));
         setPassCount7(newPass7Count);
       }
       if (specialTurn) {
         setNextTurnAfterSpecial(baseNextTurn);
       }
+    }
+
+    if (consumedRensa) {
+      setRensaPendingActor(null);
     }
 
     if (isTrickCleared) {
@@ -712,7 +728,8 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
           trickOwner: newTrickOwner,
           passedActors: [],
           is11Back: false,
-          isRevolution: newIsRev
+          isRevolution: newIsRev,
+          rensaPendingActor: consumedRensa ? null : rensaPendingActor
         });
       }, 1000);
     } else {
@@ -724,6 +741,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
         trick: updatedTrick,
         trickOwner: actor,
         passedActors: Array.from(newPassedActors),
+        rensaPendingActor: consumedRensa ? null : rensaPendingActor,
         isRevolution: newIsRev,
         is11Back: newIs11,
         passCount7: newPass7Count > 0 ? newPass7Count : passCount7,
@@ -791,9 +809,25 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
   };
 
   const toggleCardSelection = (id: string) => {
-    if (turn !== currentMyActor && turn !== `${currentMyActor}_pass_7` && turn !== `${currentMyActor}_discard_10`) return;
+    if (turn !== currentMyActor && turn !== `${currentMyActor}_pass_7` && turn !== `${currentMyActor}_discard_10` && turn !== `${currentMyActor}_mulligan`) return;
 
     const myHandLen = hands[currentMyActor]?.length || 1;
+
+    if (turn === `${currentMyActor}_mulligan`) {
+      const maxDiscard = Math.min(3, myHandLen);
+      const newSelected = new Set(selectedIds);
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        if (newSelected.size >= maxDiscard) {
+          const first = Array.from(newSelected)[0];
+          newSelected.delete(first);
+        }
+        newSelected.add(id);
+      }
+      setSelectedIds(newSelected);
+      return;
+    }
 
     if (turn === `${currentMyActor}_pass_7`) {
       const requiredPass = Math.min(Math.max(1, passCount7), myHandLen);
@@ -920,7 +954,32 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     }
   };
 
-  const PASSIVE_IDS = new Set(['clairvoyance', 'three_card_revolution', 'extra_discard', 'max_hp_up', 'gold_rush', 'defense_up', 'gyakuten_emperor']);
+  const attemptPlayerMulligan = () => {
+    const playerHand = hands[currentMyActor] || [];
+    const requiredCount = Math.min(3, playerHand.length);
+    if (selectedIds.size !== requiredCount) return;
+
+    const suits: Suit[] = ['♠', '♥', '♦', '♣'];
+    const newCards: CardData[] = Array.from({ length: requiredCount }).map((_, i) => ({
+      id: `mulligan_${Date.now()}_${i}`,
+      suit: suits[Math.floor(Math.random() * suits.length)],
+      rank: Math.floor(Math.random() * 13) + 3 as Rank
+    }));
+
+    const updated = {
+      ...hands,
+      [currentMyActor]: [...playerHand.filter(c => !selectedIds.has(c.id)), ...newCards].sort((a, b) => a.rank - b.rank)
+    };
+    setHands(updated);
+    setSelectedIds(new Set());
+    addLog(`【手札厳選】${requiredCount}枚を入れ替えた！`);
+    const nxt = nextTurnAfterSpecial || currentMyActor;
+    setTurn(nxt);
+    setNextTurnAfterSpecial(null);
+    broadcastState({ hands: updated, turn: nxt, nextTurnAfterSpecial: null });
+  };
+
+  const PASSIVE_IDS = new Set(['clairvoyance', 'three_card_revolution', 'extra_discard', 'max_hp_up', 'gold_rush', 'defense_up', 'gyakuten_emperor', 'teppeki', 'kane_no_saihai', 'fukutsu']);
   const myAbilities = gameState.abilities[currentMyActor] || [];
   const activeAbilities = myAbilities.filter(a => a.type !== 'passive' && !PASSIVE_IDS.has(a.id));
   const passiveAbilities = myAbilities.filter(a => a.type === 'passive' || PASSIVE_IDS.has(a.id));
@@ -1056,6 +1115,61 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
           is11Back: false
         });
       }, 1000);
+    } else if (abilityId === 'rensa') {
+      addLog(`【連撃】次のプレイの直後、もう一度自分の番になる！`);
+      setRensaPendingActor(currentMyActor);
+      broadcastState({ rensaPendingActor: currentMyActor });
+    } else if (abilityId === 'kandatsu') {
+      const targets = ACTORS.filter(a => a !== currentMyActor && (hands[a]?.length || 0) > 0);
+      if (targets.length > 0) {
+        const target = targets[Math.floor(Math.random() * targets.length)];
+        const targetHand = [...(hands[target] || [])].sort((a, b) => b.rank - a.rank);
+        const stolen = targetHand[0];
+        addLog(`【強奪】${getActorName(target)} から最強のカードを奪った！`);
+        setHands(prev => {
+          const u = {
+            ...prev,
+            [target]: prev[target].filter(c => c.id !== stolen.id),
+            [currentMyActor]: [...(prev[currentMyActor] || []), stolen].sort((a, b) => a.rank - b.rank)
+          };
+          broadcastState({ hands: u });
+          return u;
+        });
+      } else {
+        addLog(`【強奪】対象がいなかった…`);
+      }
+    } else if (abilityId === 'tefuda_senkyo') {
+      addLog(`【手札厳選】捨てるカードを3枚選んでください。`);
+      setSelectedIds(new Set());
+      setNextTurnAfterSpecial(currentMyActor);
+      const mulliganTurn = `${currentMyActor}_mulligan` as TurnState;
+      setTurn(mulliganTurn);
+      broadcastState({ turn: mulliganTurn, nextTurnAfterSpecial: currentMyActor });
+    } else if (abilityId === 'shinkakumei') {
+      const newRev = !isRevolution;
+      addLog(`【即革命】強制的に革命を発動した！`);
+      setIsRevolution(newRev);
+      broadcastState({ isRevolution: newRev });
+    } else if (abilityId === 'bourei') {
+      const targets = ACTORS.filter(a => a !== currentMyActor && (hands[a]?.length || 0) > 0);
+      if (targets.length > 0) {
+        const leader = targets.reduce((min, a) => (hands[a].length < hands[min].length ? a : min), targets[0]);
+        const leaderHand = [...(hands[leader] || [])];
+        const discardNum = Math.min(2, leaderHand.length);
+        const shuffled = [...leaderHand].sort(() => Math.random() - 0.5);
+        const toDiscard = new Set(shuffled.slice(0, discardNum).map(c => c.id));
+        addLog(`【亡霊の一手】${getActorName(leader)} の手札を${discardNum}枚強制的に捨てさせた！`);
+        setHands(prev => {
+          const u = {
+            ...prev,
+            [leader]: prev[leader].filter(c => !toDiscard.has(c.id))
+          };
+          broadcastState({ hands: u });
+          return u;
+        });
+      } else {
+        addLog(`【亡霊の一手】対象がいなかった…`);
+      }
     }
   };
 
@@ -1422,7 +1536,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                   ? "bg-amber-500 text-black border-amber-300 font-black animate-pulse"
                   : "bg-slate-800 text-slate-400 border-slate-700"
               )}>
-                {turn === bottom ? '★ あなたの番' : turn === `${bottom}_pass_7` ? '🎁 7渡しモード' : turn === `${bottom}_discard_10` ? '🃏 10捨てモード' : getActorName(bottom)}
+                {turn === bottom ? '★ あなたの番' : turn === `${bottom}_pass_7` ? '🎁 7渡しモード' : turn === `${bottom}_discard_10` ? '🃏 10捨てモード' : turn === `${bottom}_mulligan` ? '🔄 手札厳選モード' : getActorName(bottom)}
               </span>
               <span className="text-xs text-slate-400 font-pixel">手札: {hands[bottom]?.length || 0}枚</span>
             </div>
@@ -1519,6 +1633,16 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                 className="font-pixel text-lg text-rose-300 font-bold hover:scale-105 active:scale-95 transition-transform disabled:opacity-30 bg-rose-950/80 border-2 border-rose-500 px-6 py-2 rounded-xl cursor-pointer shadow-lg"
               >
                 カードを捨てる ({selectedIds.size}/{Math.min(Math.max(1, discardCount10), hands[bottom]?.length || 1)})
+              </button>
+            )}
+
+            {turn === `${bottom}_mulligan` && (
+              <button
+                onClick={attemptPlayerMulligan}
+                disabled={selectedIds.size !== Math.min(3, hands[bottom]?.length || 0)}
+                className="font-pixel text-lg text-purple-300 font-bold hover:scale-105 active:scale-95 transition-transform disabled:opacity-30 bg-purple-950/80 border-2 border-purple-500 px-6 py-2 rounded-xl cursor-pointer shadow-lg"
+              >
+                入れ替える ({selectedIds.size}/{Math.min(3, hands[bottom]?.length || 0)})
               </button>
             )}
 
