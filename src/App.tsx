@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { GameState, createEmptyAbilities } from './types';
+import { GameState, GameSettings, DEFAULT_GAME_SETTINGS, createEmptyAbilities } from './types';
 import { createInitialPlayerDeck } from './utils/daifugo';
 import { CombatView } from './components/CombatView';
 import { ShopView } from './components/ShopView';
 import { AbilitySelectView } from './components/AbilitySelectView';
 import { MultiplayerLobby } from './components/MultiplayerLobby';
+import { GameSettingsPanel } from './components/GameSettingsPanel';
 import { RoomInfo } from './types/multiplayer';
 import { socketService } from './services/socket';
-import { ShieldAlert, Users, User } from 'lucide-react';
+import { ShieldAlert, Users, User, Settings } from 'lucide-react';
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>({
@@ -19,12 +20,27 @@ export default function App() {
     gold: 0,
     playerDeck: [],
     abilities: createEmptyAbilities(),
+    ...DEFAULT_GAME_SETTINGS,
   });
 
   const [multiplayerRoom, setMultiplayerRoom] = useState<RoomInfo | null>(null);
   const [myActor, setMyActor] = useState<string>('player');
   const [isMultiplayerMode, setIsMultiplayerMode] = useState(false);
   const [disbandNotice, setDisbandNotice] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [soloSettings, setSoloSettings] = useState<GameSettings>(() => {
+    try {
+      const saved = localStorage.getItem('daifugo_solo_settings');
+      if (saved) return { ...DEFAULT_GAME_SETTINGS, ...JSON.parse(saved) };
+    } catch {
+      // ignore malformed saved settings
+    }
+    return DEFAULT_GAME_SETTINGS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('daifugo_solo_settings', JSON.stringify(soloSettings));
+  }, [soloSettings]);
 
   useEffect(() => {
     socketService.connect();
@@ -44,6 +60,7 @@ export default function App() {
         gold: 0,
         playerDeck: createInitialPlayerDeck(),
         abilities: createEmptyAbilities(),
+        ...(updatedRoom.settings || DEFAULT_GAME_SETTINGS),
       });
     });
 
@@ -117,6 +134,7 @@ export default function App() {
       gold: 0,
       playerDeck: createInitialPlayerDeck(),
       abilities: createEmptyAbilities(),
+      ...soloSettings,
     });
   };
 
@@ -137,6 +155,7 @@ export default function App() {
       gold: 0,
       playerDeck: createInitialPlayerDeck(),
       abilities: createEmptyAbilities(),
+      ...(room.settings || DEFAULT_GAME_SETTINGS),
     });
   };
 
@@ -195,23 +214,38 @@ export default function App() {
                 <span className="text-amber-400 font-bold text-[11px] uppercase tracking-wider">
                   [ GAME RULE ]
                 </span>
-                <span className="text-zinc-500 text-[10px]">12pt VICTOR</span>
+                <span className="text-zinc-500 text-[10px]">{soloSettings.scoreLimit}pt VICTOR</span>
               </div>
-              
+
               <div className="space-y-2 text-[11px] text-zinc-300">
                 <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 p-2">
-                  <span className="bg-amber-500 text-black px-1.5 py-0.5 font-bold text-[10px]">12pt</span>
-                  <span>12pt先取で勝利！ (1位:3pt / 2位:2pt)</span>
+                  <span className="bg-amber-500 text-black px-1.5 py-0.5 font-bold text-[10px]">{soloSettings.scoreLimit}pt</span>
+                  <span>{soloSettings.scoreLimit}pt先取で勝利！ (1位:3pt / 2位:2pt)</span>
                 </div>
                 <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 p-2">
                   <span className="bg-red-600 text-white px-1.5 py-0.5 font-bold text-[10px]">都</span>
                   <span>都落ち (前1位が逃すと即大貧民0pt)</span>
                 </div>
                 <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 p-2">
-                  <span className="bg-sky-500 text-black px-1.5 py-0.5 font-bold text-[10px]">8/11</span>
-                  <span>11バック / 8切り / 7渡し / 革命</span>
+                  <span className="bg-sky-500 text-black px-1.5 py-0.5 font-bold text-[10px]">⏱</span>
+                  <span>1ターン{soloSettings.turnTimeLimit}秒制限</span>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(prev => !prev)}
+                className="w-full flex items-center justify-center gap-1.5 text-[10px] text-zinc-400 hover:text-amber-400 border-t-2 border-zinc-800 pt-2 transition-colors cursor-pointer"
+              >
+                <Settings size={12} />
+                <span>{isSettingsOpen ? 'ゲーム設定を閉じる ▲' : 'ゲーム設定を開く ▼'}</span>
+              </button>
+
+              {isSettingsOpen && (
+                <div className="pt-1">
+                  <GameSettingsPanel settings={soloSettings} onChange={setSoloSettings} />
+                </div>
+              )}
             </div>
 
             {/* Buttons (Retro Play / Multiplayer Style) */}
@@ -277,7 +311,7 @@ export default function App() {
               GAME OVER
             </h1>
             <p className="text-xs tracking-wider text-zinc-400">
-              CPUに先に 12pt を取られてしまった...
+              CPUに先に {gameState.scoreLimit}pt を取られてしまった...
             </p>
             <div className="pt-4">
               <button

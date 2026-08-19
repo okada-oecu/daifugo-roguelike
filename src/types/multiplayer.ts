@@ -1,4 +1,4 @@
-import { Actor, CardData, GameState, Play, RankTitle, TurnState, Ability } from '../types';
+import { Actor, CardData, GameState, Play, RankTitle, TurnState, Ability, GameSettings } from '../types';
 
 export interface RoomPlayer {
   id: string; // socket id or 'cpu_x'
@@ -69,4 +69,5 @@ export interface RoomInfo {
   status: 'waiting' | 'in_game';
   gameState: RoomGameState | null;
   chatMessages: ChatMessage[];
+  settings: GameSettings;
 }

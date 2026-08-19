@@ -1,4 +1,4 @@
-import { CardData, Play, Rank, Suit } from '../types';
+import { CardData, Play, Rank, Suit, DaifugoRules, DEFAULT_RULES } from '../types';
 
 /**
  * Get card strength.
@@ -134,7 +134,7 @@ export const createEnemyHands = (floor: number, playerDeck: CardData[]): { enemy
 /**
  * Evaluate selected cards to determine if they form a valid play (Single, Group, Sequence).
  */
-export const evaluatePlay = (cards: CardData[], isReversed: boolean, hasThreeCardRevolution: boolean = false): Play | null => {
+export const evaluatePlay = (cards: CardData[], isReversed: boolean, hasThreeCardRevolution: boolean = false, rules: DaifugoRules = DEFAULT_RULES): Play | null => {
   if (!cards || cards.length === 0) return null;
 
   const jokers = cards.filter(c => c.rank === 16);
@@ -150,10 +150,10 @@ export const evaluatePlay = (cards: CardData[], isReversed: boolean, hasThreeCar
   // Single card
   if (cards.length === 1) {
     const card = cards[0];
-    if (card.rank === 7) { has7 = true; count7 = 1; }
-    if (card.rank === 8) { has8 = true; }
-    if (card.rank === 10) { has10 = true; count10 = 1; }
-    if (card.rank === 11) { has11 = true; }
+    if (card.rank === 7 && rules.sevenPass) { has7 = true; count7 = 1; }
+    if (card.rank === 8 && rules.eightGiri) { has8 = true; }
+    if (card.rank === 10 && rules.tenDiscard) { has10 = true; count10 = 1; }
+    if (card.rank === 11 && rules.elevenBack) { has11 = true; }
     return {
       type: 'Single',
       count: 1,
@@ -166,7 +166,7 @@ export const evaluatePlay = (cards: CardData[], isReversed: boolean, hasThreeCar
 
   // All Jokers (e.g. 2 Jokers together)
   if (nonJokers.length === 0) {
-    const isRev = cards.length >= (hasThreeCardRevolution ? 3 : 4);
+    const isRev = rules.revolution && cards.length >= (hasThreeCardRevolution ? 3 : 4);
     return {
       type: 'Group',
       count: cards.length,
@@ -182,13 +182,13 @@ export const evaluatePlay = (cards: CardData[], isReversed: boolean, hasThreeCar
   const isGroup = nonJokers.every(c => c.rank === targetRank);
 
   if (isGroup) {
-    has7 = targetRank === 7;
-    count7 = targetRank === 7 ? cards.length : 0;
-    has8 = targetRank === 8;
-    has10 = targetRank === 10;
-    count10 = targetRank === 10 ? cards.length : 0;
-    has11 = targetRank === 11;
-    const isRev = cards.length >= (hasThreeCardRevolution ? 3 : 4);
+    has7 = targetRank === 7 && rules.sevenPass;
+    count7 = (targetRank === 7 && rules.sevenPass) ? cards.length : 0;
+    has8 = targetRank === 8 && rules.eightGiri;
+    has10 = targetRank === 10 && rules.tenDiscard;
+    count10 = (targetRank === 10 && rules.tenDiscard) ? cards.length : 0;
+    has11 = targetRank === 11 && rules.elevenBack;
+    const isRev = rules.revolution && cards.length >= (hasThreeCardRevolution ? 3 : 4);
 
     return {
       type: 'Group',
@@ -238,10 +238,10 @@ export const evaluatePlay = (cards: CardData[], isReversed: boolean, hasThreeCar
           const bestEnd = bestStart + totalCount - 1;
 
           for (let r = bestStart; r <= bestEnd; r++) {
-            if (r === 7) { has7 = true; count7 = 1; }
-            if (r === 8) { has8 = true; }
-            if (r === 10) { has10 = true; count10 = 1; }
-            if (r === 11) { has11 = true; }
+            if (r === 7 && rules.sevenPass) { has7 = true; count7 = 1; }
+            if (r === 8 && rules.eightGiri) { has8 = true; }
+            if (r === 10 && rules.tenDiscard) { has10 = true; count10 = 1; }
+            if (r === 11 && rules.elevenBack) { has11 = true; }
           }
 
           const strongestRank = (isReversed ? bestStart : bestEnd) as Rank;
@@ -293,7 +293,7 @@ export const canPlay = (attempt: Play, trickTop: Play | null, isReversed: boolea
   return attemptStrength > trickStrength;
 };
 
-export const getAllValidPlays = (hand: CardData[], isReversed: boolean, currentTrick: Play | null, hasThreeCardRevolution: boolean = false): Play[] => {
+export const getAllValidPlays = (hand: CardData[], isReversed: boolean, currentTrick: Play | null, hasThreeCardRevolution: boolean = false, rules: DaifugoRules = DEFAULT_RULES): Play[] => {
   if (!hand || hand.length === 0) return [];
 
   const allCombinations: CardData[][] = [];
@@ -357,7 +357,7 @@ export const getAllValidPlays = (hand: CardData[], isReversed: boolean, currentT
   const playKeys = new Set<string>();
 
   allCombinations.forEach(combo => {
-    const play = evaluatePlay(combo, isReversed, hasThreeCardRevolution);
+    const play = evaluatePlay(combo, isReversed, hasThreeCardRevolution, rules);
     if (play && canPlay(play, currentTrick, isReversed)) {
       const key = play.cards.map(c => c.id).sort().join(',');
       if (!playKeys.has(key)) {
@@ -374,9 +374,10 @@ export const getAIOptimalPlay = (
   hand: CardData[],
   isReversed: boolean,
   currentTrick: Play | null,
-  hasThreeCardRevolution: boolean = false
+  hasThreeCardRevolution: boolean = false,
+  rules: DaifugoRules = DEFAULT_RULES
 ): Play | null => {
-  const validPlays = getAllValidPlays(hand, isReversed, currentTrick, hasThreeCardRevolution);
+  const validPlays = getAllValidPlays(hand, isReversed, currentTrick, hasThreeCardRevolution, rules);
   if (validPlays.length === 0) return null;
 
   if (currentTrick === null) {

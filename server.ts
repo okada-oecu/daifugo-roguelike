@@ -22,6 +22,44 @@ interface ChatMessage {
   isSystem?: boolean;
 }
 
+interface DaifugoRules {
+  eightGiri: boolean;
+  sevenPass: boolean;
+  tenDiscard: boolean;
+  elevenBack: boolean;
+  revolution: boolean;
+}
+
+interface GameSettings {
+  scoreLimit: number;
+  turnTimeLimit: number;
+  rules: DaifugoRules;
+}
+
+const DEFAULT_GAME_SETTINGS: GameSettings = {
+  scoreLimit: 12,
+  turnTimeLimit: 30,
+  rules: {
+    eightGiri: true,
+    sevenPass: true,
+    tenDiscard: true,
+    elevenBack: true,
+    revolution: true,
+  },
+};
+
+const VALID_SCORE_LIMITS = new Set([6, 12, 24]);
+const VALID_TIME_LIMITS = new Set([30, 60, 120]);
+
+function isValidGameSettings(v: any): v is GameSettings {
+  if (!isPlainObject(v)) return false;
+  if (!VALID_SCORE_LIMITS.has(v.scoreLimit)) return false;
+  if (!VALID_TIME_LIMITS.has(v.turnTimeLimit)) return false;
+  if (!isPlainObject(v.rules)) return false;
+  const ruleKeys = ['eightGiri', 'sevenPass', 'tenDiscard', 'elevenBack', 'revolution'];
+  return ruleKeys.every(k => typeof v.rules[k] === 'boolean');
+}
+
 interface Room {
   code: string;
   hostId: string;
@@ -31,6 +69,7 @@ interface Room {
   chatMessages: ChatMessage[];
   phaseReadyMap?: { [phase: string]: Set<string> };
   lastActivity: number;
+  settings: GameSettings;
 }
 
 const rooms = new Map<string, Room>();
@@ -115,6 +154,7 @@ async function startServer() {
         status: 'waiting',
         gameState: null,
         lastActivity: Date.now(),
+        settings: DEFAULT_GAME_SETTINGS,
         chatMessages: [{
           id: `sys_${Date.now()}`,
           senderName: 'システム',
@@ -190,6 +230,18 @@ async function startServer() {
         touch(room);
         io.to(currentRoomCode).emit('room-updated', room);
       }
+    });
+
+    socket.on('update-room-settings', ({ settings }: { settings: GameSettings }) => {
+      if (!currentRoomCode) return;
+      const room = rooms.get(currentRoomCode);
+      if (!room || room.status !== 'waiting') return;
+      if (room.hostId !== socket.id) return;
+      if (!isValidGameSettings(settings)) return;
+
+      room.settings = settings;
+      touch(room);
+      io.to(currentRoomCode).emit('room-updated', room);
     });
 
     socket.on('start-game', ({ initialGameState }: { initialGameState: any }) => {

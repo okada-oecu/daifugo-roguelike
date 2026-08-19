@@ -167,7 +167,7 @@ export function ShopView({ gameState, setGameState, myActor = 'player', roomInfo
           </div>
           <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-500/40 px-2 md:px-3 py-1 rounded">
             <span className="text-amber-400"><Trophy size={16} /></span>
-            <span className="text-base md:text-lg font-mono font-bold text-amber-300">My Score: {myScore} / 12pt ({myRank})</span>
+            <span className="text-base md:text-lg font-mono font-bold text-amber-300">My Score: {myScore} / {gameState.scoreLimit}pt ({myRank})</span>
           </div>
         </div>
       </div>

@@ -70,6 +70,34 @@ export interface Ability {
   price?: number;
 }
 
+export interface DaifugoRules {
+  eightGiri: boolean;
+  sevenPass: boolean;
+  tenDiscard: boolean;
+  elevenBack: boolean;
+  revolution: boolean;
+}
+
+export const DEFAULT_RULES: DaifugoRules = {
+  eightGiri: true,
+  sevenPass: true,
+  tenDiscard: true,
+  elevenBack: true,
+  revolution: true,
+};
+
+export interface GameSettings {
+  scoreLimit: number;
+  turnTimeLimit: number;
+  rules: DaifugoRules;
+}
+
+export const DEFAULT_GAME_SETTINGS: GameSettings = {
+  scoreLimit: 12,
+  turnTimeLimit: 30,
+  rules: DEFAULT_RULES,
+};
+
 export interface GameState {
   phase: GamePhase;
   round: number;
@@ -79,6 +107,9 @@ export interface GameState {
   gold: number;
   playerDeck: CardData[];
   abilities: Record<Actor, Ability[]>;
+  scoreLimit: number;
+  turnTimeLimit: number;
+  rules: DaifugoRules;
 }
 
 export const createEmptyAbilities = (): Record<Actor, Ability[]> => ({

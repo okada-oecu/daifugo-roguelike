@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { RoomInfo, ChatMessage } from '../types/multiplayer';
+import { DEFAULT_GAME_SETTINGS } from '../types';
 import { socketService } from '../services/socket';
 import { createAllFourHands } from '../utils/daifugo';
 import { MultiplayerChat } from './MultiplayerChat';
-import { Users, Copy, Check, Play, ArrowLeft, Shield, Crown, Sparkles, MessageSquare, RefreshCw } from 'lucide-react';
+import { GameSettingsPanel } from './GameSettingsPanel';
+import { Users, Copy, Check, Play, ArrowLeft, Shield, Crown, Sparkles, MessageSquare, RefreshCw, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface MultiplayerLobbyProps {
@@ -31,6 +33,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('daifugo_player_name', playerName);
@@ -101,9 +104,14 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
       gold: 0,
       abilities: [],
       hands: initialHands,
+      ...(room.settings || DEFAULT_GAME_SETTINGS),
     };
 
     socketService.startGame(initialGameState);
+  };
+
+  const handleSettingsChange = (settings: typeof DEFAULT_GAME_SETTINGS) => {
+    socketService.updateRoomSettings(settings);
   };
 
   const copyRoomCode = () => {
@@ -311,6 +319,30 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                 </div>
               );
             })}
+          </div>
+
+          {/* Room Settings */}
+          <div className="bg-zinc-950 border-4 border-zinc-800 p-4">
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(prev => !prev)}
+              className="w-full flex items-center justify-between text-xs font-bold text-amber-400 cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Settings size={14} />
+                対戦設定 {!isHost && <span className="text-zinc-500 font-normal">(ホストのみ変更可)</span>}
+              </span>
+              <span className="text-zinc-500">{isSettingsOpen ? '▲' : '▼'}</span>
+            </button>
+            {isSettingsOpen && (
+              <div className="pt-4">
+                <GameSettingsPanel
+                  settings={room.settings || DEFAULT_GAME_SETTINGS}
+                  onChange={isHost ? handleSettingsChange : undefined}
+                  readOnly={!isHost}
+                />
+              </div>
+            )}
           </div>
         </div>
 

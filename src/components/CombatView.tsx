@@ -24,7 +24,6 @@ interface CombatViewProps {
 }
 
 const ACTORS: Actor[] = ['player', 'enemy1', 'enemy2', 'enemy3'];
-const TURN_TIME_LIMIT = 30;
 
 const EFFECT_STYLES: Record<string, { glow: string; border: string; text: string }> = {
   revolution: { glow: 'shadow-[0_0_100px_30px_rgba(225,29,72,0.55)]', border: 'border-rose-500', text: 'text-rose-400' },
@@ -154,7 +153,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
   const [passCount7, setPassCount7] = useState<number>(0);
   const [discardCount10, setDiscardCount10] = useState<number>(0);
   const [rensaPendingActor, setRensaPendingActor] = useState<Actor | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(TURN_TIME_LIMIT);
+  const [timeLeft, setTimeLeft] = useState<number>(gameState.turnTimeLimit);
 
   const [isRevolution, setIsRevolution] = useState(false);
   const [is11Back, setIs11Back] = useState(false);
@@ -417,13 +416,13 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       });
 
       // Each client judges the outcome from its own seat: I clear the game if I'm
-      // the (co-)leader once someone crosses 12pt, otherwise it's game over for me.
+      // the (co-)leader once someone crosses the score limit, otherwise it's game over for me.
       const myRankObj = rankings.find(r => r.actor === currentMyActor);
       const myTotalPts = myRankObj ? myRankObj.totalPts : 0;
-      const anyoneElse12 = rankings.some(r => r.actor !== currentMyActor && r.totalPts >= 12);
+      const anyoneElseCleared = rankings.some(r => r.actor !== currentMyActor && r.totalPts >= gameState.scoreLimit);
 
-      const isGameCleared = myTotalPts >= 12 && !rankings.some(r => r.actor !== currentMyActor && r.totalPts > myTotalPts);
-      const isGameOver = !isGameCleared && anyoneElse12;
+      const isGameCleared = myTotalPts >= gameState.scoreLimit && !rankings.some(r => r.actor !== currentMyActor && r.totalPts > myTotalPts);
+      const isGameOver = !isGameCleared && anyoneElseCleared;
 
       setRoundSummary({
         rankings,
@@ -433,7 +432,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
       });
       setRoundEnded(true);
     }
-  }, [finishedActors, miyakoOchiActor, hands, gameState.scores, gameState.abilities, roundEnded]);
+  }, [finishedActors, miyakoOchiActor, hands, gameState.scores, gameState.abilities, gameState.scoreLimit, roundEnded]);
 
   // Turn advancement / Skip finished actors / Trick clear
   useEffect(() => {
@@ -497,7 +496,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
         const timer = setTimeout(() => {
           const effectiveTopPlay = (trickOwner === currentActor || trick.length === 0 || !trickOwner) ? null : currentTopPlay;
           const cpuHasThreeCardRevolution = (gameState.abilities[currentActor] || []).some(a => a.id === 'three_card_revolution');
-          const aiPlay = getAIOptimalPlay(hands[currentActor] || [], effectiveReversed, effectiveTopPlay, cpuHasThreeCardRevolution);
+          const aiPlay = getAIOptimalPlay(hands[currentActor] || [], effectiveReversed, effectiveTopPlay, cpuHasThreeCardRevolution, gameState.rules);
           if (aiPlay) {
             executePlay(aiPlay, currentActor);
           } else {
@@ -915,7 +914,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
     const playerHand = hands[currentMyActor] || [];
     const selectedCards = playerHand.filter(c => ids.has(c.id));
     const hasThreeCardRevolution = (gameState.abilities[currentMyActor] || []).some(a => a.id === 'three_card_revolution');
-    const play = evaluatePlay(selectedCards, effectiveReversed, hasThreeCardRevolution);
+    const play = evaluatePlay(selectedCards, effectiveReversed, hasThreeCardRevolution, gameState.rules);
 
     const effectiveTopPlay = (trickOwner === currentMyActor || trick.length === 0 || !trickOwner) ? null : currentTopPlay;
     if (play && canPlay(play, effectiveTopPlay, effectiveReversed)) {
@@ -1053,10 +1052,10 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
   useEffect(() => {
     const isMyDecision = turn === currentMyActor || turn.startsWith(`${currentMyActor}_`);
     if (!isMyDecision || roundEnded) {
-      setTimeLeft(TURN_TIME_LIMIT);
+      setTimeLeft(gameState.turnTimeLimit);
       return;
     }
-    setTimeLeft(TURN_TIME_LIMIT);
+    setTimeLeft(gameState.turnTimeLimit);
     const interval = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -1306,7 +1305,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
   // Evaluate currently selected cards for Player
   const selectedCards = (hands[currentMyActor] || []).filter(c => selectedIds.has(c.id));
   const hasThreeCardRevolution = (gameState.abilities[currentMyActor] || []).some(a => a.id === 'three_card_revolution');
-  const proposedPlay = evaluatePlay(selectedCards, effectiveReversed, hasThreeCardRevolution);
+  const proposedPlay = evaluatePlay(selectedCards, effectiveReversed, hasThreeCardRevolution, gameState.rules);
 
   const effectiveTopPlay = (trickOwner === currentMyActor || trick.length === 0 || !trickOwner) ? null : currentTopPlay;
   let isValid = false;
@@ -1355,13 +1354,13 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                 return (
                   <div key={actor} className={cn("flex justify-between items-center py-0.5 gap-2", isMe ? "text-amber-400 font-bold" : "text-slate-300")}>
                     <span className="truncate min-w-0 flex-1" title={name}>{idx + 1}. {name}</span>
-                    <span className="font-pixel text-amber-300 shrink-0">{score}<span className="text-slate-500">/12pt</span></span>
+                    <span className="font-pixel text-amber-300 shrink-0">{score}<span className="text-slate-500">/{gameState.scoreLimit}pt</span></span>
                   </div>
                 );
               })}
             </div>
             <div className="text-[9px] text-slate-500 text-center pt-1 border-t border-white/5 mt-1">
-              🎯 12pt先取で勝利
+              🎯 {gameState.scoreLimit}pt先取で勝利
             </div>
           </div>
 
@@ -1833,7 +1832,7 @@ export function CombatView({ gameState, setGameState, roomInfo, myActor = 'playe
                       <div className="flex items-center gap-4">
                         <div className="flex flex-col items-end">
                           <span className="text-amber-300 font-bold">+{res.pts} pt</span>
-                          <span className="text-[10px] text-slate-400">累計 {res.totalPts}<span className="text-slate-500">/12pt</span></span>
+                          <span className="text-[10px] text-slate-400">累計 {res.totalPts}<span className="text-slate-500">/{gameState.scoreLimit}pt</span></span>
                         </div>
                         <span className="text-yellow-400 text-[11px] flex items-center gap-1">
                           <Coins className="w-3 h-3" />+{res.gold}

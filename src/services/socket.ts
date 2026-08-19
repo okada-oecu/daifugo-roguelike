@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { ChatMessage, RoomInfo } from '../types/multiplayer';
+import { GameSettings } from '../types';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -38,6 +39,10 @@ class SocketService {
 
   public toggleReady() {
     this.socket?.emit('toggle-ready');
+  }
+
+  public updateRoomSettings(settings: GameSettings) {
+    this.socket?.emit('update-room-settings', { settings });
   }
 
   public startGame(initialGameState: any) {
